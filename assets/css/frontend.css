@@ -1,0 +1,30 @@
+/*
+ * ComOrg – Frontend Styles
+ * Caricati nel sito pubblico.
+ */
+
+.comorg-container {
+    max-width: 900px;
+    margin: 20px auto;
+}
+
+.comorg-box {
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    padding: 20px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+}
+
+.comorg-button {
+    display: inline-block;
+    padding: 10px 16px;
+    background: #0073aa;
+    color: #fff;
+    border-radius: 4px;
+    text-decoration: none;
+}
+
+.comorg-button:hover {
+    background: #005f8d;
+}
