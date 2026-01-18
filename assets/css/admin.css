@@ -1,1 +1,33 @@
+/*
+ * ComOrg – Admin Styles
+ * Caricati solo nella dashboard WordPress.
+ */
 
+.comorg-admin-wrap {
+    max-width: 1100px;
+    margin-top: 20px;
+}
+
+.comorg-admin-card {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    padding: 20px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+}
+
+.comorg-admin-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.comorg-admin-table th,
+.comorg-admin-table td {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.comorg-admin-table th {
+    background: #f7f7f7;
+    font-weight: 600;
+}
