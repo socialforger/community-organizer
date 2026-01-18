@@ -2,42 +2,38 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * ComOrg Admin Loader
- *
- * Carica menu, settings e wizard.
+ * ComOrg – Admin Menu
  */
 class ComOrg_Admin {
 
-    /**
-     * Singleton
-     */
-    protected static $instance = null;
+    public static function init() {
 
-    public static function instance() {
-        if ( null === self::$instance ) {
-            self::$instance = new self();
-        }
-        return self::$instance;
+        add_action( 'admin_menu', array( __CLASS__, 'register_menu' ) );
     }
 
-    private function __construct() {
-        $this->includes();
-        $this->hooks();
+    public static function register_menu() {
+
+        add_menu_page(
+            __( 'ComOrg', 'comorg' ),
+            __( 'ComOrg', 'comorg' ),
+            'manage_options',
+            'comorg',
+            array( __CLASS__, 'render_dashboard' ),
+            'dashicons-admin-generic',
+            58
+        );
+
+        add_submenu_page(
+            'comorg',
+            __( 'Onboarding dinamico', 'comorg' ),
+            __( 'Onboarding dinamico', 'comorg' ),
+            'manage_options',
+            'comorg-onboarding',
+            array( 'ComOrg_Admin_Onboarding', 'render_page' )
+        );
     }
 
-    /**
-     * Include file admin
-     */
-    private function includes() {
-        require_once COMORG_PLUGIN_DIR . 'app/admin/classes/class-comorg-admin-menu.php';
-        require_once COMORG_PLUGIN_DIR . 'app/admin/classes/class-comorg-admin-settings.php';
-        require_once COMORG_PLUGIN_DIR . 'app/admin/classes/class-comorg-admin-wizard.php';
-    }
-
-    /**
-     * Hook admin
-     */
-    private function hooks() {
-        add_action( 'admin_menu', array( 'ComOrg_Admin_Menu', 'register_menu' ) );
+    public static function render_dashboard() {
+        echo '<div class="wrap"><h1>Community Organizer</h1></div>';
     }
 }
