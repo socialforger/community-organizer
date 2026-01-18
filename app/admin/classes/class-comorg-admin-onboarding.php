@@ -18,7 +18,7 @@ class ComOrg_Admin_Onboarding {
 
         $fields = self::get_buddyboss_fields();
 
-        include __DIR__ . '/../views/admin-onboarding.php';
+        include __DIR__ . '/../screens/admin-onboarding.php';
     }
 
 
