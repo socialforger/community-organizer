@@ -2,48 +2,67 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * ComOrg Solidarity – Manager
+ * ComOrg – Solidarietà – Manager
  *
- * Gestisce fondi, crediti, aiuti e movimenti solidali.
+ * Responsabilità:
+ * - Calcolo quota solidarietà
+ * - Creazione donazione Charitable
+ * - Collegamento ordine ↔ donazione
  */
 class ComOrg_Solidarity_Manager {
 
-    public static function init() {
-        add_action( 'comorg_solidarity_add', array( __CLASS__, 'add_movement' ), 10, 4 );
+    /**
+     * Calcola la quota totale per un item dell’ordine.
+     */
+    public static function calculate_quota( $product_id, $qty ) {
+
+        $quota = ComOrg_Solidarity_DB::get_product_quota( $product_id );
+
+        if ( $quota <= 0 ) {
+            return 0;
+        }
+
+        return floatval( $quota ) * intval( $qty );
     }
 
-    /**
-     * Aggiunge un movimento solidale
-     */
-    public static function add_movement( $user_id, $amount, $type, $description = '' ) {
 
-        if ( ! $user_id || ! $amount || ! $type ) {
+    /**
+     * Crea una donazione Charitable.
+     */
+    public static function create_donation( $order, $product_id, $qty ) {
+
+        if ( ! class_exists( 'Charitable' ) ) {
             return false;
         }
 
-        // Salva nel DB
-        ComOrg_Solidarity_DB::add( $user_id, $amount, $type, $description );
+        $campaign_id = ComOrg_Solidarity_DB::get_product_campaign( $product_id );
 
-        // Trigger notifiche
-        do_action( 'comorg_solidarity_movement_added', $user_id, $amount, $type, $description );
-
-        return true;
-    }
-
-    /**
-     * Calcola saldo solidarietà per utente
-     */
-    public static function get_balance( $user_id ) {
-
-        $entries = ComOrg_Solidarity_DB::get_by_user( $user_id );
-        $total   = 0;
-
-        if ( $entries ) {
-            foreach ( $entries as $entry ) {
-                $total += floatval( $entry->amount );
-            }
+        if ( ! $campaign_id ) {
+            return false;
         }
 
-        return $total;
+        $amount = self::calculate_quota( $product_id, $qty );
+
+        if ( $amount <= 0 ) {
+            return false;
+        }
+
+        $donation_id = charitable_get_donation( array(
+            'campaign_id'    => $campaign_id,
+            'amount'         => $amount,
+            'gateway'        => 'woocommerce',
+            'transaction_id' => $order->get_id(),
+            'donor'          => array(
+                'email'      => $order->get_billing_email(),
+                'first_name' => $order->get_billing_first_name(),
+                'last_name'  => $order->get_billing_last_name(),
+            ),
+        ) );
+
+        if ( $donation_id ) {
+            ComOrg_Solidarity_DB::save_order_donation( $order->get_id(), $donation_id );
+        }
+
+        return $donation_id;
     }
 }
