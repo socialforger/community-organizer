@@ -5,16 +5,19 @@ defined( 'ABSPATH' ) || exit;
  * ComOrg – Profile
  *
  * Gestisce:
- * - Assegnazione BuddyBoss Profile Type dopo onboarding
- * - Slug organizzazione / produttore / GAS
+ * - Assegnazione dinamica BuddyBoss Profile Type (PF/PG)
+ * - Lettura campi configurati dall’admin (onboarding dinamico)
+ * - Slug produttore / GAS / organizzazione
  * - Meta utente necessari ai moduli ComOrg
- * - Integrazione con campi condizionali BuddyBoss
+ * - Tab "Prodotti" nel profilo produttore
  */
 class ComOrg_Profile {
 
+    const OPTION_ONBOARDING = 'comorg_onboarding_map';
+
     public static function init() {
 
-        // Hook dopo salvataggio profilo BuddyBoss
+        // Onboarding dinamico dopo salvataggio profilo BuddyBoss
         add_action( 'xprofile_updated_profile', array( __CLASS__, 'process_onboarding' ), 20, 5 );
 
         // Tab prodotti nel profilo produttore
@@ -23,39 +26,71 @@ class ComOrg_Profile {
 
 
     /**
-     * ------------------------------------------------------------
-     * 1. ONBOARDING PF/PG
-     * ------------------------------------------------------------
+     * Recupera configurazione onboarding dinamico.
      *
-     * Questo metodo viene chiamato ogni volta che l’utente salva
-     * il profilo BuddyBoss. Noi intercettiamo SOLO il primo salvataggio
-     * dopo il magic link, quando l’utente completa i campi condizionali.
+     * @return array
+     */
+    protected static function get_onboarding_settings() {
+
+        $defaults = array(
+            'field_pfpg'  => '',
+            'field_type'  => '',
+            'field_name'  => '',
+            'map_types'   => array(),
+            'slug_rules'  => array(),
+        );
+
+        $settings = get_option( self::OPTION_ONBOARDING, array() );
+
+        if ( ! is_array( $settings ) ) {
+            $settings = array();
+        }
+
+        return wp_parse_args( $settings, $defaults );
+    }
+
+
+    /**
+     * Onboarding dinamico PF/PG + Profile Type.
+     *
+     * @param int $user_id
      */
     public static function process_onboarding( $user_id ) {
 
         // Se l’utente ha già un Profile Type → non fare nulla
-        if ( bp_get_member_type( $user_id ) ) {
+        if ( function_exists( 'bp_get_member_type' ) && bp_get_member_type( $user_id ) ) {
             return;
         }
 
+        $settings = self::get_onboarding_settings();
+
+        $field_pfpg = $settings['field_pfpg'];
+        $field_type = $settings['field_type'];
+        $field_name = $settings['field_name'];
+        $map_types  = $settings['map_types'];
+        $slug_rules = $settings['slug_rules'];
+
+        // Se la configurazione non è completa, non facciamo nulla
+        if ( empty( $field_pfpg ) || empty( $field_type ) ) {
+            return;
+        }
+
+        // Lettura campi dinamici da BuddyBoss
+        $is_legal = xprofile_get_field_data( $field_pfpg, $user_id );
+        $org_type = xprofile_get_field_data( $field_type, $user_id );
+        $org_name = $field_name ? xprofile_get_field_data( $field_name, $user_id ) : '';
+
+        $is_legal_norm = strtolower( trim( (string) $is_legal ) );
+        $org_type_norm = strtolower( trim( (string) $org_type ) );
+
         /**
-         * Campi condizionali BuddyBoss:
-         *
-         * - "Sei rappresentante legale?" → sì/no
-         * - "Tipo di organizzazione" → produttore / GAS / organizzazione
-         * - "Nome organizzazione"
+         * PF → Cittadino (o altro Profile Type definito dall’admin in futuro)
          */
+        if ( $is_legal_norm !== 'sì' && $is_legal_norm !== 'si' ) {
 
-        $is_legal = xprofile_get_field_data( 'Sei rappresentante legale?', $user_id );
-        $org_type = xprofile_get_field_data( 'Tipo di organizzazione', $user_id );
-        $org_name = xprofile_get_field_data( 'Nome organizzazione', $user_id );
-
-        /**
-         * PF → Cittadino
-         */
-        if ( strtolower( $is_legal ) !== 'sì' ) {
-
-            bp_set_member_type( $user_id, 'cittadino' );
+            if ( function_exists( 'bp_set_member_type' ) ) {
+                bp_set_member_type( $user_id, 'cittadino' );
+            }
 
             update_user_meta( $user_id, '_comorg_identity', 'pf' );
             update_user_meta( $user_id, '_comorg_profile_ready', 1 );
@@ -64,48 +99,81 @@ class ComOrg_Profile {
         }
 
         /**
-         * PG → in base al tipo di organizzazione
+         * PG → in base al tipo di organizzazione (mappato dall’admin)
          */
         update_user_meta( $user_id, '_comorg_identity', 'pg' );
 
-        switch ( strtolower( $org_type ) ) {
+        $profile_type = 'organizzazione';
 
-            case 'produttore':
-                bp_set_member_type( $user_id, 'produttore' );
-
-                // Slug produttore
-                $slug = 'prod_' . comorg_generate_slug( 10 );
-                update_user_meta( $user_id, '_comorg_producer_slug', $slug );
-                break;
-
-            case 'gas':
-            case 'gruppo di acquisto':
-                bp_set_member_type( $user_id, 'gas' );
-
-                // Slug GAS
-                $slug = 'gas_' . comorg_generate_slug( 10 );
-                update_user_meta( $user_id, '_comorg_gas_slug', $slug );
-                break;
-
-            case 'organizzazione':
-            default:
-                bp_set_member_type( $user_id, 'organizzazione' );
-
-                // Slug organizzazione
-                $slug = comorg_sanitize_slug( $org_name );
-                update_user_meta( $user_id, '_comorg_org_slug', $slug );
-                break;
+        if ( ! empty( $map_types ) && isset( $map_types[ $org_type_norm ] ) ) {
+            $profile_type = $map_types[ $org_type_norm ];
         }
+
+        if ( function_exists( 'bp_set_member_type' ) ) {
+            bp_set_member_type( $user_id, $profile_type );
+        }
+
+        // Slug dinamici in base alle regole configurate
+        self::apply_slug_rules( $user_id, $profile_type, $org_name, $slug_rules );
 
         update_user_meta( $user_id, '_comorg_profile_ready', 1 );
     }
 
 
+    /**
+     * Applica le regole di generazione slug in base al Profile Type.
+     *
+     * @param int    $user_id
+     * @param string $profile_type
+     * @param string $org_name
+     * @param array  $slug_rules
+     */
+    protected static function apply_slug_rules( $user_id, $profile_type, $org_name, $slug_rules ) {
+
+        $rules = isset( $slug_rules[ $profile_type ] ) ? $slug_rules[ $profile_type ] : array();
+
+        $method = isset( $rules['method'] ) ? $rules['method'] : 'random';
+        $prefix = isset( $rules['prefix'] ) ? $rules['prefix'] : '';
+        $length = isset( $rules['length'] ) ? (int) $rules['length'] : 10;
+
+        $slug = '';
+
+        switch ( $method ) {
+
+            case 'sanitize_name':
+                $slug = comorg_sanitize_slug( $org_name );
+                break;
+
+            case 'random':
+            default:
+                $slug = comorg_generate_slug( $length );
+                break;
+        }
+
+        if ( $prefix ) {
+            $slug = $prefix . $slug;
+        }
+
+        switch ( $profile_type ) {
+
+            case 'produttore':
+                update_user_meta( $user_id, '_comorg_producer_slug', $slug );
+                break;
+
+            case 'gas':
+                update_user_meta( $user_id, '_comorg_gas_slug', $slug );
+                break;
+
+            case 'organizzazione':
+            default:
+                update_user_meta( $user_id, '_comorg_org_slug', $slug );
+                break;
+        }
+    }
+
 
     /**
-     * ------------------------------------------------------------
-     * 2. TAB "PRODOTTI" NEL PROFILO PRODUTTORE
-     * ------------------------------------------------------------
+     * Tab "Prodotti" nel profilo produttore.
      */
     public static function add_products_tab() {
 
@@ -133,7 +201,7 @@ class ComOrg_Profile {
 
     public static function products_tab_content() {
 
-        $user_id = bp_displayed_user_id();
+        $user_id  = bp_displayed_user_id();
         $products = comorg_get_products_by_user( $user_id );
 
         echo '<div class="comorg-producer-products">';
