@@ -2,51 +2,79 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * ComOrg Admin Menu
+ * ComOrg – Admin Menu
+ *
+ * Registra:
+ * - Dashboard
+ * - Wizard
+ * - Onboarding dinamico
  */
 class ComOrg_Admin_Menu {
 
+    public static function init() {
+
+        add_action( 'admin_menu', array( __CLASS__, 'register_menu' ) );
+    }
+
+
     public static function register_menu() {
 
+        /**
+         * Menu principale ComOrg
+         */
         add_menu_page(
             __( 'ComOrg', 'comorg' ),
             __( 'ComOrg', 'comorg' ),
             'manage_options',
-            'comorg-dashboard',
-            array( __CLASS__, 'dashboard_page' ),
-            'dashicons-networking',
-            56
+            'comorg',
+            array( __CLASS__, 'render_dashboard' ),
+            'dashicons-admin-generic',
+            58
         );
 
+        /**
+         * Dashboard
+         */
         add_submenu_page(
-            'comorg-dashboard',
+            'comorg',
             __( 'Dashboard', 'comorg' ),
             __( 'Dashboard', 'comorg' ),
             'manage_options',
-            'comorg-dashboard',
-            array( __CLASS__, 'dashboard_page' )
+            'comorg',
+            array( __CLASS__, 'render_dashboard' )
         );
 
+        /**
+         * Wizard di configurazione
+         */
         add_submenu_page(
-            'comorg-dashboard',
-            __( 'Setup Wizard', 'comorg' ),
-            __( 'Setup Wizard', 'comorg' ),
+            'comorg',
+            __( 'Wizard', 'comorg' ),
+            __( 'Wizard', 'comorg' ),
             'manage_options',
             'comorg-wizard',
-            array( 'ComOrg_Admin_Wizard', 'render' )
+            array( 'ComOrg_Admin_Wizard', 'render_page' )
         );
 
+        /**
+         * Onboarding dinamico
+         */
         add_submenu_page(
-            'comorg-dashboard',
-            __( 'Settings', 'comorg' ),
-            __( 'Settings', 'comorg' ),
+            'comorg',
+            __( 'Onboarding dinamico', 'comorg' ),
+            __( 'Onboarding dinamico', 'comorg' ),
             'manage_options',
-            'comorg-settings',
-            array( 'ComOrg_Admin_Settings', 'render' )
+            'comorg-onboarding',
+            array( 'ComOrg_Admin_Onboarding', 'render_page' )
         );
     }
 
-    public static function dashboard_page() {
-        include COMORG_PLUGIN_DIR . 'app/admin/screens/dashboard.php';
+
+    /**
+     * Dashboard principale
+     */
+    public static function render_dashboard() {
+
+        include __DIR__ . '/../screens/dashboard.php';
     }
 }
