@@ -1,0 +1,34 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: ComOrg 1.0.0\n"
+"Language: it_IT\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"X-Domain: comorg\n"
+
+#: comorg.php:20
+msgid "Community Organizer"
+msgstr "Community Organizer"
+
+#: app/admin/classes/class-comorg-admin-menu.php:15
+msgid "ComOrg"
+msgstr "ComOrg"
+
+#: app/admin/classes/class-comorg-admin-menu.php:30
+msgid "Dashboard"
+msgstr "Dashboard"
+
+#: app/admin/classes/class-comorg-admin-menu.php:45
+msgid "Setup Wizard"
+msgstr "Procedura guidata"
+
+#: app/admin/classes/class-comorg-admin-menu.php:60
+msgid "Settings"
+msgstr "Impostazioni"
+
+#: app/admin/screens/dashboard.php:5
+msgid "Community Organizer Dashboard"
+msgstr "Dashboard di Community Organizer"
+
+#: app/admin/screens/wizard.php:5
+msgid "ComOrg Setup Wizard"
+msgstr "Procedura guidata ComOrg"
