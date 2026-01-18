@@ -4,8 +4,13 @@ defined( 'ABSPATH' ) || exit;
 /**
  * ComOrg – Loader
  *
- * Carica TUTTE le classi del plugin in ordine corretto.
- * Questo è il cuore dell’inizializzazione del plugin.
+ * Carica tutte le classi del plugin in ordine corretto.
+ * Versione aggiornata per architettura:
+ * - BuddyBoss Profile Types
+ * - WordPress Roles (Members)
+ * - Magic Link
+ * - Onboarding condizionale
+ * - Moduli ComOrg
  */
 class ComOrg_Loader {
 
@@ -20,15 +25,14 @@ class ComOrg_Loader {
 
         /**
          * ---------------------------------------------------------
-         * 2. CARICAMENTO FILE CORE
+         * 2. CARICAMENTO CLASSI CORE
          * ---------------------------------------------------------
          */
         self::load_core_classes();
 
         /**
          * ---------------------------------------------------------
-         * 3. CARICAMENTO SISTEMA DI AUTENTICAZIONE
-         *    (Magic Link)
+         * 3. CARICAMENTO SISTEMA DI AUTENTICAZIONE (Magic Link)
          * ---------------------------------------------------------
          */
         require_once COMORG_PATH . 'app/core/classes/class-comorg-auth.php';
@@ -36,7 +40,7 @@ class ComOrg_Loader {
         /**
          * ---------------------------------------------------------
          * 4. CARICAMENTO LOGICA PROFILO
-         *    (utente_individuale / utente_collettivo + ruoli)
+         *    (assegnazione Profile Type BuddyBoss)
          * ---------------------------------------------------------
          */
         require_once COMORG_PATH . 'app/core/classes/class-comorg-profile.php';
@@ -58,7 +62,7 @@ class ComOrg_Loader {
 
         /**
          * ---------------------------------------------------------
-         * 7. CARICAMENTO MODULI
+         * 7. CARICAMENTO MODULI COMORG
          * ---------------------------------------------------------
          */
         self::load_modules();
@@ -122,7 +126,7 @@ class ComOrg_Loader {
     }
 
     /**
-     * Carica i moduli
+     * Carica i moduli ComOrg
      */
     protected static function load_modules() {
 
