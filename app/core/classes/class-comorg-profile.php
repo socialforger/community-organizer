@@ -2,66 +2,177 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * ComOrg – Profile Logic
+ * ComOrg – Profile
+ *
+ * Gestisce:
+ * - Assegnazione BuddyBoss Profile Type dopo onboarding
+ * - Slug organizzazione / produttore / GAS
+ * - Meta utente necessari ai moduli ComOrg
+ * - Integrazione con campi condizionali BuddyBoss
  */
 class ComOrg_Profile {
 
     public static function init() {
-        // quando il profilo viene aggiornato
-        add_action( 'xprofile_updated_profile', array( __CLASS__, 'sync_profile_to_meta' ), 10, 5 );
+
+        // Hook dopo salvataggio profilo BuddyBoss
+        add_action( 'xprofile_updated_profile', array( __CLASS__, 'process_onboarding' ), 20, 5 );
+
+        // Tab prodotti nel profilo produttore
+        add_action( 'bp_setup_nav', array( __CLASS__, 'add_products_tab' ), 100 );
     }
 
+
     /**
-     * Sincronizza campi BuddyBoss → meta + member_type + ruolo
+     * ------------------------------------------------------------
+     * 1. ONBOARDING PF/PG
+     * ------------------------------------------------------------
+     *
+     * Questo metodo viene chiamato ogni volta che l’utente salva
+     * il profilo BuddyBoss. Noi intercettiamo SOLO il primo salvataggio
+     * dopo il magic link, quando l’utente completa i campi condizionali.
      */
-    public static function sync_profile_to_meta( $user_id, $posted_field_ids, $errors, $old_values, $new_values ) {
+    public static function process_onboarding( $user_id ) {
 
-        // 1. Dati utente individuale (esempi di nomi campi)
-        $first_name = xprofile_get_field_data( 'Nome', $user_id );
-        $last_name  = xprofile_get_field_data( 'Cognome', $user_id );
-
-        if ( $first_name ) {
-            update_user_meta( $user_id, 'first_name', $first_name );
-        }
-        if ( $last_name ) {
-            update_user_meta( $user_id, 'last_name', $last_name );
+        // Se l’utente ha già un Profile Type → non fare nulla
+        if ( bp_get_member_type( $user_id ) ) {
+            return;
         }
 
-        // 2. Domanda: sei rappresentante legale?
-        $is_legal_rep = xprofile_get_field_data( 'Sei il rappresentante legale di una organizzazione?', $user_id );
+        /**
+         * Campi condizionali BuddyBoss:
+         *
+         * - "Sei rappresentante legale?" → sì/no
+         * - "Tipo di organizzazione" → produttore / GAS / organizzazione
+         * - "Nome organizzazione"
+         */
 
-        // 3. Tipo di organizzazione (menu a tendina)
+        $is_legal = xprofile_get_field_data( 'Sei rappresentante legale?', $user_id );
         $org_type = xprofile_get_field_data( 'Tipo di organizzazione', $user_id );
+        $org_name = xprofile_get_field_data( 'Nome organizzazione', $user_id );
 
-        // 4. Assegnazione member_type + ruolo
+        /**
+         * PF → Cittadino
+         */
+        if ( strtolower( $is_legal ) !== 'sì' ) {
 
-        if ( $is_legal_rep === 'Sì' ) {
+            bp_set_member_type( $user_id, 'cittadino' );
 
-            // utente collettivo
-            if ( function_exists( 'bp_set_member_type' ) ) {
-                bp_set_member_type( $user_id, 'utente_collettivo' );
+            update_user_meta( $user_id, '_comorg_identity', 'pf' );
+            update_user_meta( $user_id, '_comorg_profile_ready', 1 );
+
+            return;
+        }
+
+        /**
+         * PG → in base al tipo di organizzazione
+         */
+        update_user_meta( $user_id, '_comorg_identity', 'pg' );
+
+        switch ( strtolower( $org_type ) ) {
+
+            case 'produttore':
+                bp_set_member_type( $user_id, 'produttore' );
+
+                // Slug produttore
+                $slug = 'prod_' . comorg_generate_slug( 10 );
+                update_user_meta( $user_id, '_comorg_producer_slug', $slug );
+                break;
+
+            case 'gas':
+            case 'gruppo di acquisto':
+                bp_set_member_type( $user_id, 'gas' );
+
+                // Slug GAS
+                $slug = 'gas_' . comorg_generate_slug( 10 );
+                update_user_meta( $user_id, '_comorg_gas_slug', $slug );
+                break;
+
+            case 'organizzazione':
+            default:
+                bp_set_member_type( $user_id, 'organizzazione' );
+
+                // Slug organizzazione
+                $slug = comorg_sanitize_slug( $org_name );
+                update_user_meta( $user_id, '_comorg_org_slug', $slug );
+                break;
+        }
+
+        update_user_meta( $user_id, '_comorg_profile_ready', 1 );
+    }
+
+
+
+    /**
+     * ------------------------------------------------------------
+     * 2. TAB "PRODOTTI" NEL PROFILO PRODUTTORE
+     * ------------------------------------------------------------
+     */
+    public static function add_products_tab() {
+
+        if ( ! function_exists( 'bp_core_new_nav_item' ) ) {
+            return;
+        }
+
+        bp_core_new_nav_item( array(
+            'name'                => __( 'Prodotti', 'comorg' ),
+            'slug'                => 'prodotti',
+            'screen_function'     => array( __CLASS__, 'render_products_tab' ),
+            'default_subnav_slug' => 'prodotti',
+            'position'            => 80,
+            'show_for_displayed_user' => true,
+        ) );
+    }
+
+
+    public static function render_products_tab() {
+
+        add_action( 'bp_template_content', array( __CLASS__, 'products_tab_content' ) );
+        bp_core_load_template( 'members/single/plugins' );
+    }
+
+
+    public static function products_tab_content() {
+
+        $user_id = bp_displayed_user_id();
+        $products = comorg_get_products_by_user( $user_id );
+
+        echo '<div class="comorg-producer-products">';
+
+        if ( $products->have_posts() ) {
+
+            echo '<ul class="products">';
+
+            while ( $products->have_posts() ) {
+                $products->the_post();
+                global $product;
+
+                echo '<li class="product">';
+
+                echo '<a href="' . get_permalink() . '">';
+                echo woocommerce_get_product_thumbnail();
+                echo '</a>';
+
+                echo '<h3><a href="' . get_permalink() . '">' . get_the_title() . '</a></h3>';
+
+                if ( $product ) {
+                    echo '<span class="price">' . $product->get_price_html() . '</span>';
+                }
+
+                if ( get_current_user_id() === $user_id ) {
+                    echo '<p><a class="button" href="' . get_edit_post_link() . '">' . __( 'Modifica prodotto', 'comorg' ) . '</a></p>';
+                }
+
+                echo '</li>';
             }
 
-            if ( $org_type === 'Gruppo di acquisto' ) {
-                update_user_meta( $user_id, '_comorg_role', 'organizzazione' );
-                update_user_meta( $user_id, '_comorg_group_type', 'gas' );
-            } elseif ( $org_type === 'Produttore' ) {
-                update_user_meta( $user_id, '_comorg_role', 'produttore' );
-            } elseif ( $org_type === 'Organizzazione / Ente gestore' ) {
-                update_user_meta( $user_id, '_comorg_role', 'organizzazione' );
-            }
+            echo '</ul>';
 
         } else {
-
-            // utente individuale
-            if ( function_exists( 'bp_set_member_type' ) ) {
-                bp_set_member_type( $user_id, 'utente_individuale' );
-            }
-
-            // ruolo base: cittadino (puoi raffinare con altri campi)
-            if ( ! get_user_meta( $user_id, '_comorg_role', true ) ) {
-                update_user_meta( $user_id, '_comorg_role', 'cittadino' );
-            }
+            echo '<p>' . __( 'Nessun prodotto disponibile.', 'comorg' ) . '</p>';
         }
+
+        echo '</div>';
+
+        wp_reset_postdata();
     }
 }
