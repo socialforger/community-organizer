@@ -2,73 +2,39 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * ComOrg Solidarity – Database Handler
+ * ComOrg – Solidarietà – DB Layer
  *
- * Registra movimenti di solidarietà (crediti, aiuti, fondi).
+ * Responsabilità:
+ * - Lettura/scrittura meta prodotto (quota + campagna)
+ * - Lettura/scrittura meta ordine (donazione collegata)
  */
 class ComOrg_Solidarity_DB {
 
-    protected static $table = 'comorg_solidarity';
-
-    public static function init() {
-        add_action( 'plugins_loaded', array( __CLASS__, 'maybe_create_table' ) );
+    /**
+     * Quota solidarietà del prodotto.
+     */
+    public static function get_product_quota( $product_id ) {
+        return floatval( get_post_meta( $product_id, '_comorg_solidarity_amount', true ) );
     }
 
     /**
-     * Crea tabella DB se mancante
+     * Campagna Charitable associata al prodotto.
      */
-    public static function maybe_create_table() {
-        global $wpdb;
-
-        $table_name = $wpdb->prefix . self::$table;
-        $charset    = $wpdb->get_charset_collate();
-
-        $sql = "
-            CREATE TABLE IF NOT EXISTS {$table_name} (
-                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-                user_id BIGINT UNSIGNED NOT NULL,
-                amount DECIMAL(10,2) NOT NULL DEFAULT 0,
-                type VARCHAR(50) NOT NULL,
-                description TEXT NULL,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (id),
-                KEY user_id (user_id)
-            ) {$charset};
-        ";
-
-        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-        dbDelta( $sql );
+    public static function get_product_campaign( $product_id ) {
+        return intval( get_post_meta( $product_id, '_comorg_solidarity_campaign', true ) );
     }
 
     /**
-     * Aggiunge un movimento di solidarietà
+     * Salva la donazione Charitable collegata all’ordine.
      */
-    public static function add( $user_id, $amount, $type, $description = '' ) {
-        global $wpdb;
-
-        return $wpdb->insert(
-            $wpdb->prefix . self::$table,
-            array(
-                'user_id'     => $user_id,
-                'amount'      => $amount,
-                'type'        => sanitize_text_field( $type ),
-                'description' => $description,
-            ),
-            array( '%d', '%f', '%s', '%s' )
-        );
+    public static function save_order_donation( $order_id, $donation_id ) {
+        update_post_meta( $order_id, '_comorg_solidarity_donation_id', intval( $donation_id ) );
     }
 
     /**
-     * Recupera movimenti per utente
+     * Recupera la donazione collegata all’ordine.
      */
-    public static function get_by_user( $user_id ) {
-        global $wpdb;
-
-        return $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT * FROM {$wpdb->prefix}" . self::$table . " WHERE user_id = %d ORDER BY created_at DESC",
-                $user_id
-            )
-        );
+    public static function get_order_donation( $order_id ) {
+        return intval( get_post_meta( $order_id, '_comorg_solidarity_donation_id', true ) );
     }
 }
